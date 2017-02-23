@@ -1,47 +1,44 @@
-FROM  phusion/baseimage:0.9.17
+FROM glassfish/openjdk
+# Maintainer
+# Set environment variables and default password for user 'admin'
+ENV GLASSFISH_PKG=glassfish-4.1.1.zip \
+    GLASSFISH_URL=http://download.oracle.com/glassfish/4.1.1/release/glassfish-4.1.1.zip \
+    GLASSFISH_HOME=/glassfish4 \
+    PATH=$PATH:/glassfish4/bin \
+    PASSWORD=glassfish
 
-MAINTAINER  Author Name <author@email.com>
+# Install packages, download and extract GlassFish
+# Setup password file
+# Enable DAS
+RUN apk add --update wget unzip git curl && \
+    wget --no-check-certificate $GLASSFISH_URL && \
+    unzip -o $GLASSFISH_PKG && \
+    rm -f $GLASSFISH_PKG && \
+    apk del wget unzip && \
+    echo "--- Setup the password file ---" && \
+    echo "AS_ADMIN_PASSWORD=" > /tmp/glassfishpwd && \
+    echo "AS_ADMIN_NEWPASSWORD=${PASSWORD}" >> /tmp/glassfishpwd  && \
+    echo "--- Enable DAS, change admin password, and secure admin access ---" && \
+    asadmin --user=admin --passwordfile=/tmp/glassfishpwd change-admin-password --domain_name domain1 && \
+    asadmin start-domain && \
+    echo "AS_ADMIN_PASSWORD=${PASSWORD}" > /tmp/glassfishpwd && \
+    asadmin --user=admin --passwordfile=/tmp/glassfishpwd enable-secure-admin && \
+    asadmin --user=admin stop-domain && \
+    rm /tmp/glassfishpwd
 
-RUN echo "deb http://archive.ubuntu.com/ubuntu trusty main universe" > /etc/apt/sources.list
+ENV PATH $PATH:/usr/local/apache-maven-3.3.9/bin
 
-RUN apt-get -y update
+RUN curl -L -o /tmp/apache-maven-3.3.9.zip http://mirrors.cnnic.cn/apache/maven/maven-3/3.3.9/binaries/apache-maven-3.3.9-bin.zip && \
+        unzip /tmp/apache-maven-3.3.9.zip -d /usr/local && \
+        rm -f /tmp/apache-maven-3.3.9.zip
 
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y -q python-software-properties software-properties-common
+RUN git clone https://github.com/DuoSoftware/DVP-CarrierProvider.git /usr/src/carrierprovider
+RUN cd /usr/src/carrierprovider
+WORKDIR /usr/src/carrierprovider
+RUN mvn package
+RUN cp target/carrierProvider.war /glassfish4/glassfish/domains/domain1/autodeploy/
+# Ports being exposed
+EXPOSE 4848 8080 8181
 
-ENV JAVA_VER 8
-ENV JAVA_HOME /usr/lib/jvm/java-8-oracle
-
-RUN echo 'deb http://ppa.launchpad.net/webupd8team/java/ubuntu trusty main' >> /etc/apt/sources.list && \
-    echo 'deb-src http://ppa.launchpad.net/webupd8team/java/ubuntu trusty main' >> /etc/apt/sources.list && \
-    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys C2518248EEA14886 && \
-    apt-get update && \
-    echo oracle-java${JAVA_VER}-installer shared/accepted-oracle-license-v1-1 select true | sudo /usr/bin/debconf-set-selections && \
-    apt-get install -y --force-yes --no-install-recommends oracle-java${JAVA_VER}-installer oracle-java${JAVA_VER}-set-default && \
-    apt-get clean && \
-    rm -rf /var/cache/oracle-jdk${JAVA_VER}-installer
-
-RUN update-java-alternatives -s java-8-oracle
-
-RUN echo "export JAVA_HOME=/usr/lib/jvm/java-8-oracle" >> ~/.bashrc
-RUN apt-get install maven git -y
-RUN git clone https://github.com/DuoSoftware/DVP-CarrierProvider.git /usr/local/src/carrierprovider
-RUN cd /usr/local/src/carrierprovider;
-RUN mvn package;
-RUN add-apt-repository ppa:webupd8team/java
-RUN /opt/glassfish4/bin/
-RUN ./asadmin start-domain domain1
-RUN ./asadmin deploy --force=true --user admin /usr/local/src/carrierprovider/target/carrierProvider.war
-
-
-
-
-
-
-
-RUN git clone https://github.com/DuoSoftware/DVP-Contacts.git /usr/local/src/contacts
-RUN cd /usr/local/src/contacts;
-WORKDIR /usr/local/src/contacts
-RUN npm install
-EXPOSE 8893
-CMD [ "node", "/usr/local/src/contacts/app.js" ]
-
+# Start asadmin console and the domain
+CMD ["asadmin", "start-domain", "-v"]
