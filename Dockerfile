@@ -1,4 +1,12 @@
-FROM glassfish/openjdk
+FROM        java:8-jdk
+
+ENV         JAVA_HOME         /usr/lib/jvm/java-8-openjdk-amd64
+ENV         PATH              $PATH:$JAVA_HOME/bin
+
+RUN         apt-get update && \
+            apt-get install -y curl unzip zip inotify-tools && \
+            rm -rf /var/lib/apt/lists/*
+
 # Maintainer
 # Set environment variables and default password for user 'admin'
 ENV GLASSFISH_PKG=glassfish-4.1.1.zip \
@@ -10,11 +18,13 @@ ENV GLASSFISH_PKG=glassfish-4.1.1.zip \
 # Install packages, download and extract GlassFish
 # Setup password file
 # Enable DAS
-RUN apk add --update wget unzip git curl && \
+
+RUN apt-get update && \
+    apt-get install -y  wget unzip git curl && \
     wget --no-check-certificate $GLASSFISH_URL && \
     unzip -o $GLASSFISH_PKG && \
     rm -f $GLASSFISH_PKG && \
-    apk del wget unzip && \
+#    apk del wget unzip && \
     echo "--- Setup the password file ---" && \
     echo "AS_ADMIN_PASSWORD=" > /tmp/glassfishpwd && \
     echo "AS_ADMIN_NEWPASSWORD=${PASSWORD}" >> /tmp/glassfishpwd  && \
@@ -27,7 +37,6 @@ RUN apk add --update wget unzip git curl && \
     rm /tmp/glassfishpwd
 
 ENV PATH $PATH:/usr/local/apache-maven-3.3.9/bin
-
 RUN curl -L -o /tmp/apache-maven-3.3.9.zip http://mirrors.cnnic.cn/apache/maven/maven-3/3.3.9/binaries/apache-maven-3.3.9-bin.zip && \
         unzip /tmp/apache-maven-3.3.9.zip -d /usr/local && \
         rm -f /tmp/apache-maven-3.3.9.zip
